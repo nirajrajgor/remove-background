@@ -3,39 +3,58 @@
 import Image from "next/image";
 import { useState, useCallback } from "react";
 import { removeBackground } from "@imgly/background-removal";
-import { motion } from "framer-motion";
-import { FiUpload, FiSliders, FiDownload } from "react-icons/fi";
+import { motion, AnimatePresence } from "framer-motion";
+import { FiUpload, FiSliders, FiDownload, FiX } from "react-icons/fi";
+
+type ImagePair = {
+  id: string;
+  original: File;
+  processed: string | null;
+};
 
 export default function Home() {
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [processedImage, setProcessedImage] = useState<string | null>(null);
+  const [imagePairs, setImagePairs] = useState<ImagePair[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [quality, setQuality] = useState<number>(85);
 
   const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      setSelectedImage(file);
-      setProcessedImage(null);
+    const files = event.target.files;
+    if (files) {
+      const newPairs = Array.from(files).map(file => ({
+        id: Math.random().toString(36).substr(2, 9),
+        original: file,
+        processed: null
+      }));
+      setImagePairs(prev => [...prev, ...newPairs]);
     }
   }, []);
 
   const handleRemoveBackground = useCallback(async () => {
-    if (!selectedImage) return;
+    if (imagePairs.length === 0) return;
 
     setIsProcessing(true);
     try {
-      const blob = await removeBackground(selectedImage, {
-        output: { quality: quality / 100 },
-      });
-      const url = URL.createObjectURL(blob);
-      setProcessedImage(url);
+      const updatedPairs = await Promise.all(
+        imagePairs.map(async (pair) => {
+          if (pair.processed) return pair;
+          const blob = await removeBackground(pair.original, {
+            output: { quality: quality / 100 },
+          });
+          const url = URL.createObjectURL(blob);
+          return { ...pair, processed: url };
+        })
+      );
+      setImagePairs(updatedPairs);
     } catch (error) {
       console.error("Error removing background:", error);
     } finally {
       setIsProcessing(false);
     }
-  }, [selectedImage, quality]);
+  }, [imagePairs, quality]);
+
+  const handleRemoveImage = useCallback((id: string) => {
+    setImagePairs(prev => prev.filter(pair => pair.id !== id));
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-200 p-8">
@@ -45,14 +64,14 @@ export default function Home() {
         </h1>
         
         <div className="bg-white rounded-3xl shadow-2xl p-8">
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5 }}
-              className="space-y-6"
+              className="space-y-6 lg:col-span-1"
             >
-              <h2 className="text-2xl font-semibold mb-4 text-indigo-900">Upload Image</h2>
+              <h2 className="text-2xl font-semibold mb-4 text-indigo-900">Upload Images</h2>
               <div className="border-2 border-dashed border-indigo-300 rounded-xl p-8 text-center">
                 <input
                   type="file"
@@ -60,10 +79,11 @@ export default function Home() {
                   onChange={handleImageUpload}
                   className="hidden"
                   id="imageUpload"
+                  multiple
                 />
                 <label htmlFor="imageUpload" className="cursor-pointer">
                   <FiUpload className="mx-auto text-4xl text-indigo-500 mb-4" />
-                  <span className="text-indigo-900">Drag & Drop or Click to Upload</span>
+                  <span className="text-indigo-900">Drag & Drop or Click to Upload Multiple Images</span>
                 </label>
               </div>
               
@@ -87,7 +107,7 @@ export default function Home() {
               
               <button
                 onClick={handleRemoveBackground}
-                disabled={!selectedImage || isProcessing}
+                disabled={imagePairs.length === 0 || isProcessing}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-colors duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isProcessing ? (
@@ -104,60 +124,64 @@ export default function Home() {
               </button>
             </motion.div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                className="bg-gray-100 p-4 rounded-xl"
-              >
-                <h3 className="text-xl font-semibold mb-4 text-indigo-900">Original Image</h3>
-                {selectedImage ? (
-                  <Image
-                    src={URL.createObjectURL(selectedImage)}
-                    alt="Selected"
-                    width={400}
-                    height={300}
-                    className="w-full h-64 object-cover rounded-lg"
-                  />
-                ) : (
-                  <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-                    No image selected
-                  </div>
-                )}
-              </motion.div>
-
-              <motion.div
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                transition={{ duration: 0.3 }}
-                className="bg-gray-100 p-4 rounded-xl"
-              >
-                <h3 className="text-xl font-semibold mb-4 text-indigo-900">Processed Image</h3>
-                {processedImage ? (
-                  <>
-                    <Image
-                      src={processedImage}
-                      alt="Processed"
-                      width={400}
-                      height={300}
-                      className="w-full h-64 object-cover rounded-lg"
-                    />
-                    <a
-                      href={processedImage}
-                      download="processed_image.png"
-                      className="mt-4 inline-flex items-center text-indigo-600 hover:text-indigo-800"
+            <div className="lg:col-span-2 space-y-6">
+              <AnimatePresence>
+                {imagePairs.map((pair) => (
+                  <motion.div
+                    key={pair.id}
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    exit={{ opacity: 0, y: -20 }}
+                    transition={{ duration: 0.3 }}
+                    className="bg-gray-100 p-4 rounded-xl relative"
+                  >
+                    <button
+                      onClick={() => handleRemoveImage(pair.id)}
+                      className="absolute top-2 right-2 text-gray-500 hover:text-red-500"
                     >
-                      <FiDownload className="mr-2" />
-                      Download Processed Image
-                    </a>
-                  </>
-                ) : (
-                  <div className="w-full h-64 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-                    No processed image yet
-                  </div>
-                )}
-              </motion.div>
+                      <FiX size={20} />
+                    </button>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <h3 className="text-lg font-semibold mb-2 text-indigo-900">Original</h3>
+                        <Image
+                          src={URL.createObjectURL(pair.original)}
+                          alt="Original"
+                          width={400}
+                          height={300}
+                          className="w-full h-48 object-cover rounded-lg"
+                        />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-semibold mb-2 text-indigo-900">Processed</h3>
+                        {pair.processed ? (
+                          <>
+                            <Image
+                              src={pair.processed}
+                              alt="Processed"
+                              width={400}
+                              height={300}
+                              className="w-full h-48 object-cover rounded-lg"
+                            />
+                            <a
+                              href={pair.processed}
+                              download={`processed_${pair.original.name}`}
+                              className="mt-2 inline-flex items-center text-indigo-600 hover:text-indigo-800"
+                            >
+                              <FiDownload className="mr-1" />
+                              Download
+                            </a>
+                          </>
+                        ) : (
+                          <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
+                            Not processed yet
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+              </AnimatePresence>
             </div>
           </div>
         </div>
