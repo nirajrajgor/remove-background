@@ -1,7 +1,7 @@
 'use client';
 
 import Image from "next/image";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { removeBackground } from "@imgly/background-removal";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiUpload, FiSliders, FiDownload, FiX } from "react-icons/fi";
@@ -16,9 +16,10 @@ export default function Home() {
   const [imagePairs, setImagePairs] = useState<ImagePair[]>([]);
   const [isProcessing, setIsProcessing] = useState(false);
   const [quality, setQuality] = useState<number>(85);
+  const [isDragging, setIsDragging] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleImageUpload = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
+  const handleImageUpload = useCallback((files: FileList | null) => {
     if (files) {
       const newPairs = Array.from(files).map(file => ({
         id: Math.random().toString(36).substr(2, 9),
@@ -28,6 +29,31 @@ export default function Home() {
       setImagePairs(prev => [...prev, ...newPairs]);
     }
   }, []);
+
+  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(true);
+  };
+
+  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+  };
+
+  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+  };
+
+  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDragging(false);
+    const files = e.dataTransfer.files;
+    handleImageUpload(files);
+  };
 
   const handleRemoveBackground = useCallback(async () => {
     if (imagePairs.length === 0) return;
@@ -72,19 +98,33 @@ export default function Home() {
               className="space-y-6 lg:col-span-1"
             >
               <h2 className="text-2xl font-semibold mb-4 text-indigo-900">Upload Images</h2>
-              <div className="border-2 border-dashed border-indigo-300 rounded-xl p-8 text-center">
+              <div 
+                className={`relative border-2 border-dashed ${isDragging ? 'border-indigo-500 bg-indigo-100' : 'border-indigo-300'} rounded-xl p-8 transition-colors duration-200`}
+                onDragEnter={handleDragEnter}
+                onDragLeave={handleDragLeave}
+                onDragOver={handleDragOver}
+                onDrop={handleDrop}
+              >
                 <input
                   type="file"
                   accept="image/*"
-                  onChange={handleImageUpload}
+                  onChange={(e) => handleImageUpload(e.target.files)}
                   className="hidden"
                   id="imageUpload"
                   multiple
+                  ref={fileInputRef}
                 />
-                <label htmlFor="imageUpload" className="cursor-pointer">
-                  <FiUpload className="mx-auto text-4xl text-indigo-500 mb-4" />
-                  <span className="text-indigo-900">Drag & Drop or Click to Upload Multiple Images</span>
+                <label htmlFor="imageUpload" className="flex flex-col items-center cursor-pointer z-10 relative">
+                  <FiUpload className="text-4xl text-indigo-500 mb-4" />
+                  <span className="text-indigo-900 text-center">
+                    Drag & Drop or Click to Upload Multiple Images
+                  </span>
                 </label>
+                {isDragging && (
+                  <div className="absolute inset-0 bg-indigo-100 bg-opacity-90 flex items-center justify-center">
+                    <span className="text-indigo-900 font-semibold">Drop images here</span>
+                  </div>
+                )}
               </div>
               
               <div>
@@ -137,32 +177,34 @@ export default function Home() {
                   >
                     <button
                       onClick={() => handleRemoveImage(pair.id)}
-                      className="absolute top-2 right-2 text-gray-500 hover:text-red-500"
+                      className="absolute top-2 right-2 text-gray-500 hover:text-red-500 z-10"
                     >
                       <FiX size={20} />
                     </button>
                     <div className="grid grid-cols-2 gap-4">
                       <div>
                         <h3 className="text-lg font-semibold mb-2 text-indigo-900">Original</h3>
-                        <Image
-                          src={URL.createObjectURL(pair.original)}
-                          alt="Original"
-                          width={400}
-                          height={300}
-                          className="w-full h-48 object-cover rounded-lg"
-                        />
+                        <div className="relative w-full pt-[100%]">
+                          <Image
+                            src={URL.createObjectURL(pair.original)}
+                            alt="Original"
+                            fill
+                            className="absolute inset-0 object-contain rounded-lg"
+                          />
+                        </div>
                       </div>
                       <div>
                         <h3 className="text-lg font-semibold mb-2 text-indigo-900">Processed</h3>
                         {pair.processed ? (
                           <>
-                            <Image
-                              src={pair.processed}
-                              alt="Processed"
-                              width={400}
-                              height={300}
-                              className="w-full h-48 object-cover rounded-lg"
-                            />
+                            <div className="relative w-full pt-[100%]">
+                              <Image
+                                src={pair.processed}
+                                alt="Processed"
+                                fill
+                                className="absolute inset-0 object-contain rounded-lg"
+                              />
+                            </div>
                             <a
                               href={pair.processed}
                               download={`processed_${pair.original.name}`}
@@ -173,8 +215,10 @@ export default function Home() {
                             </a>
                           </>
                         ) : (
-                          <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center text-gray-400">
-                            Not processed yet
+                          <div className="w-full pt-[100%] relative bg-gray-200 rounded-lg">
+                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                              Not processed yet
+                            </div>
                           </div>
                         )}
                       </div>
