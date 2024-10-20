@@ -1,7 +1,7 @@
 'use client';
 
 import Image from "next/image";
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useMemo, memo } from "react";
 import { removeBackground } from "@imgly/background-removal";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiUpload, FiSliders, FiDownload, FiX } from "react-icons/fi";
@@ -11,6 +11,114 @@ type ImagePair = {
   original: File;
   processed: string | null;
 };
+
+// Memoized ImagePairComponent
+const ImagePairComponent = memo(({ pair, onRemove }: { pair: ImagePair; onRemove: (id: string) => void }) => {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.3 }}
+      className="bg-gray-100 p-4 rounded-xl relative"
+    >
+      <button
+        onClick={() => onRemove(pair.id)}
+        className="absolute top-2 right-2 text-gray-500 hover:text-red-500 z-10"
+      >
+        <FiX size={20} />
+      </button>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <h3 className="text-lg font-semibold mb-2 text-indigo-900">Original</h3>
+          <div className="relative w-full pt-[100%]">
+            <Image
+              src={URL.createObjectURL(pair.original)}
+              alt="Original"
+              fill
+              className="absolute inset-0 object-contain rounded-lg"
+            />
+          </div>
+        </div>
+        <div>
+          <h3 className="text-lg font-semibold mb-2 text-indigo-900">Processed</h3>
+          {pair.processed ? (
+            <>
+              <div className="relative w-full pt-[100%]">
+                <Image
+                  src={pair.processed}
+                  alt="Processed"
+                  fill
+                  className="absolute inset-0 object-contain rounded-lg"
+                />
+              </div>
+              <a
+                href={pair.processed}
+                download={`processed_${pair.original.name}`}
+                className="mt-2 inline-flex items-center text-indigo-600 hover:text-indigo-800"
+              >
+                <FiDownload className="mr-1" />
+                Download
+              </a>
+            </>
+          ) : (
+            <div className="w-full pt-[100%] relative bg-gray-200 rounded-lg">
+              <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                Not processed yet
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    </motion.div>
+  );
+});
+
+ImagePairComponent.displayName = 'ImagePairComponent';
+
+// Updated UploadArea component
+const UploadArea = memo(({ isDragging, onDragEnter, onDragLeave, onDragOver, onDrop, fileInputRef, onFileChange }: {
+  isDragging: boolean;
+  onDragEnter: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragLeave: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDragOver: (e: React.DragEvent<HTMLDivElement>) => void;
+  onDrop: (e: React.DragEvent<HTMLDivElement>) => void;
+  fileInputRef: React.RefObject<HTMLInputElement>;
+  onFileChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+}) => {
+  return (
+    <div 
+      className={`relative border-2 border-dashed ${isDragging ? 'border-indigo-500 bg-indigo-100' : 'border-indigo-300'} rounded-xl p-8 transition-colors duration-200`}
+      onDragEnter={onDragEnter}
+      onDragLeave={onDragLeave}
+      onDragOver={onDragOver}
+      onDrop={onDrop}
+    >
+      <input
+        type="file"
+        accept="image/*"
+        onChange={onFileChange}
+        className="hidden"
+        id="imageUpload"
+        multiple
+        ref={fileInputRef}
+      />
+      <label htmlFor="imageUpload" className="flex flex-col items-center cursor-pointer z-10 relative">
+        <FiUpload className="text-4xl text-indigo-500 mb-4" />
+        <span className="text-indigo-900 text-center">
+          Drag & Drop or Click to Upload Multiple Images
+        </span>
+      </label>
+      {isDragging && (
+        <div className="absolute inset-0 bg-indigo-100 bg-opacity-90 flex items-center justify-center">
+          <span className="text-indigo-900 font-semibold">Drop images here</span>
+        </div>
+      )}
+    </div>
+  );
+});
+
+UploadArea.displayName = 'UploadArea';
 
 export default function Home() {
   const [imagePairs, setImagePairs] = useState<ImagePair[]>([]);
@@ -30,30 +138,30 @@ export default function Home() {
     }
   }, []);
 
-  const handleDragEnter = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(true);
-  };
+  }, []);
 
-  const handleDragLeave = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragLeave = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-  };
+  }, []);
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDragOver = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
-  };
+  }, []);
 
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
     const files = e.dataTransfer.files;
     handleImageUpload(files);
-  };
+  }, [handleImageUpload]);
 
   const handleRemoveBackground = useCallback(async () => {
     if (imagePairs.length === 0) return;
@@ -82,6 +190,23 @@ export default function Home() {
     setImagePairs(prev => prev.filter(pair => pair.id !== id));
   }, []);
 
+  const handleQualityChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    setQuality(Number(e.target.value));
+  }, []);
+
+  // Memoize the image pairs rendering
+  const renderedImagePairs = useMemo(() => (
+    <AnimatePresence>
+      {imagePairs.map((pair) => (
+        <ImagePairComponent key={pair.id} pair={pair} onRemove={handleRemoveImage} />
+      ))}
+    </AnimatePresence>
+  ), [imagePairs, handleRemoveImage]);
+
+  const handleFileChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    handleImageUpload(e.target.files);
+  }, [handleImageUpload]);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-100 to-purple-200 p-8">
       <div className="max-w-7xl mx-auto">
@@ -98,34 +223,15 @@ export default function Home() {
               className="space-y-6 lg:col-span-1"
             >
               <h2 className="text-2xl font-semibold mb-4 text-indigo-900">Upload Images</h2>
-              <div 
-                className={`relative border-2 border-dashed ${isDragging ? 'border-indigo-500 bg-indigo-100' : 'border-indigo-300'} rounded-xl p-8 transition-colors duration-200`}
+              <UploadArea
+                isDragging={isDragging}
                 onDragEnter={handleDragEnter}
                 onDragLeave={handleDragLeave}
                 onDragOver={handleDragOver}
                 onDrop={handleDrop}
-              >
-                <input
-                  type="file"
-                  accept="image/*"
-                  onChange={(e) => handleImageUpload(e.target.files)}
-                  className="hidden"
-                  id="imageUpload"
-                  multiple
-                  ref={fileInputRef}
-                />
-                <label htmlFor="imageUpload" className="flex flex-col items-center cursor-pointer z-10 relative">
-                  <FiUpload className="text-4xl text-indigo-500 mb-4" />
-                  <span className="text-indigo-900 text-center">
-                    Drag & Drop or Click to Upload Multiple Images
-                  </span>
-                </label>
-                {isDragging && (
-                  <div className="absolute inset-0 bg-indigo-100 bg-opacity-90 flex items-center justify-center">
-                    <span className="text-indigo-900 font-semibold">Drop images here</span>
-                  </div>
-                )}
-              </div>
+                fileInputRef={fileInputRef}
+                onFileChange={handleFileChange}
+              />
               
               <div>
                 <div className="flex items-center justify-between mb-2">
@@ -139,7 +245,7 @@ export default function Home() {
                     min="1"
                     max="100"
                     value={quality}
-                    onChange={(e) => setQuality(Number(e.target.value))}
+                    onChange={handleQualityChange}
                     className="w-full h-2 bg-indigo-200 rounded-lg appearance-none cursor-pointer"
                   />
                 </div>
@@ -165,67 +271,7 @@ export default function Home() {
             </motion.div>
 
             <div className="lg:col-span-2 space-y-6">
-              <AnimatePresence>
-                {imagePairs.map((pair) => (
-                  <motion.div
-                    key={pair.id}
-                    initial={{ opacity: 0, y: 20 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    exit={{ opacity: 0, y: -20 }}
-                    transition={{ duration: 0.3 }}
-                    className="bg-gray-100 p-4 rounded-xl relative"
-                  >
-                    <button
-                      onClick={() => handleRemoveImage(pair.id)}
-                      className="absolute top-2 right-2 text-gray-500 hover:text-red-500 z-10"
-                    >
-                      <FiX size={20} />
-                    </button>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <h3 className="text-lg font-semibold mb-2 text-indigo-900">Original</h3>
-                        <div className="relative w-full pt-[100%]">
-                          <Image
-                            src={URL.createObjectURL(pair.original)}
-                            alt="Original"
-                            fill
-                            className="absolute inset-0 object-contain rounded-lg"
-                          />
-                        </div>
-                      </div>
-                      <div>
-                        <h3 className="text-lg font-semibold mb-2 text-indigo-900">Processed</h3>
-                        {pair.processed ? (
-                          <>
-                            <div className="relative w-full pt-[100%]">
-                              <Image
-                                src={pair.processed}
-                                alt="Processed"
-                                fill
-                                className="absolute inset-0 object-contain rounded-lg"
-                              />
-                            </div>
-                            <a
-                              href={pair.processed}
-                              download={`processed_${pair.original.name}`}
-                              className="mt-2 inline-flex items-center text-indigo-600 hover:text-indigo-800"
-                            >
-                              <FiDownload className="mr-1" />
-                              Download
-                            </a>
-                          </>
-                        ) : (
-                          <div className="w-full pt-[100%] relative bg-gray-200 rounded-lg">
-                            <div className="absolute inset-0 flex items-center justify-center text-gray-400">
-                              Not processed yet
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  </motion.div>
-                ))}
-              </AnimatePresence>
+              {renderedImagePairs}
             </div>
           </div>
         </div>
