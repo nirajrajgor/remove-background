@@ -1,7 +1,7 @@
 'use client';
 
 import Image from "next/image";
-import { useState, useCallback, useRef, useMemo, memo } from "react";
+import { useState, useCallback, useRef, useMemo, memo, useEffect } from "react";
 import { removeBackground } from "@imgly/background-removal";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiUpload, FiSliders, FiDownload, FiX } from "react-icons/fi";
@@ -125,18 +125,53 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [quality, setQuality] = useState<number>(85);
   const [isDragging, setIsDragging] = useState(false);
+  const [isModelReady, setIsModelReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Check if the model is ready by attempting to process a tiny valid image
+  useEffect(() => {
+    async function checkModelReady() {
+      try {
+        // Create a 1x1 transparent PNG
+        const canvas = document.createElement('canvas');
+        canvas.width = 1;
+        canvas.height = 1;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.fillStyle = 'rgba(0, 0, 0, 0)';
+          ctx.fillRect(0, 0, 1, 1);
+        }
+        const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
+        
+        await removeBackground(blob);
+        setIsModelReady(true);
+      } catch (error) {
+        console.error("Error checking model readiness:", error);
+        // Retry after a short delay
+        setTimeout(checkModelReady, 1000);
+      }
+    }
+    checkModelReady();
+  }, []);
 
   const handleImageUpload = useCallback((files: FileList | null) => {
     if (files) {
+      if (imagePairs.length > 0) {
+        const confirmClear = window.confirm("Uploading new images will clear all existing images. Do you want to continue?");
+        if (!confirmClear) {
+          return; // User cancelled, so don't proceed with the upload
+        }
+      }
+
       const newPairs = Array.from(files).map(file => ({
         id: Math.random().toString(36).substr(2, 9),
         original: file,
         processed: null
       }));
-      setImagePairs(prev => [...prev, ...newPairs]);
+      // Replace the existing image pairs with the new ones
+      setImagePairs(newPairs);
     }
-  }, []);
+  }, [imagePairs.length]);
 
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault();
@@ -159,12 +194,11 @@ export default function Home() {
     e.preventDefault();
     e.stopPropagation();
     setIsDragging(false);
-    const files = e.dataTransfer.files;
-    handleImageUpload(files);
+    handleImageUpload(e.dataTransfer.files);
   }, [handleImageUpload]);
 
   const handleRemoveBackground = useCallback(async () => {
-    if (imagePairs.length === 0) return;
+    if (imagePairs.length === 0 || !isModelReady) return;
 
     setIsProcessing(true);
     try {
@@ -172,7 +206,9 @@ export default function Home() {
         imagePairs.map(async (pair) => {
           if (pair.processed) return pair;
           const blob = await removeBackground(pair.original, {
-            output: { quality: quality / 100 },
+            output: { 
+              quality: quality / 100,
+            },
           });
           const url = URL.createObjectURL(blob);
           return { ...pair, processed: url };
@@ -184,7 +220,7 @@ export default function Home() {
     } finally {
       setIsProcessing(false);
     }
-  }, [imagePairs, quality]);
+  }, [imagePairs, quality, isModelReady]);
 
   const handleRemoveImage = useCallback((id: string) => {
     setImagePairs(prev => prev.filter(pair => pair.id !== id));
@@ -253,7 +289,7 @@ export default function Home() {
               
               <button
                 onClick={handleRemoveBackground}
-                disabled={imagePairs.length === 0 || isProcessing}
+                disabled={imagePairs.length === 0 || isProcessing || !isModelReady}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-colors duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isProcessing ? (
@@ -264,6 +300,8 @@ export default function Home() {
                     </svg>
                     Processing...
                   </span>
+                ) : !isModelReady ? (
+                  <span>Loading model...</span>
                 ) : (
                   <span>Remove Background</span>
                 )}
