@@ -38,3 +38,7 @@ This is a Next.js project that implements a background removal tool for images u
 ### Running the Development Server
 
 To start the development server:
+
+## License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
