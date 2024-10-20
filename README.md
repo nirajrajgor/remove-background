@@ -48,7 +48,8 @@ Open [http://localhost:3000](http://localhost:3000) with your browser to see the
 
 ### Deployment
 
-This project is configured to automatically deploy to GitHub Pages using GitHub Actions. When you push changes to the `main` branch, it will trigger a workflow that builds and deploys the project.
+This project is configured to deploy to GitHub Pages using gh-pages package.
+Run the command `npm run deploy` to deploy the project to GitHub Pages.
 
 The live version can be accessed at: https://nirajrajgor.github.io/remove-background/
 
