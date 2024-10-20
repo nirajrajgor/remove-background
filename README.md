@@ -38,6 +38,19 @@ This is a Next.js project that implements a background removal tool for images u
 ### Running the Development Server
 
 To start the development server:
+bash
+npm run dev
+or
+yarn dev
+
+
+Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+
+### Deployment
+
+This project is configured to automatically deploy to GitHub Pages using GitHub Actions. When you push changes to the `main` branch, it will trigger a workflow that builds and deploys the project.
+
+The live version can be accessed at: https://nirajrajgor.github.io/remove-background/
 
 ## License
 
