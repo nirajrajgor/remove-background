@@ -44,7 +44,7 @@ or
 yarn dev
 
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000/remove-background](http://localhost:3000/remove-background) with your browser to see the result.
 
 ### Deployment
 
