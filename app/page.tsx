@@ -278,6 +278,11 @@ export default function Home() {
                   <span>Remove Background</span>
                 )}
               </button>
+              
+              {/* Add note about first processing time */}
+              <p className="text-sm text-gray-600 mt-2 text-center">
+                Note: The first processing may take a bit longer as the model loads.
+              </p>
             </motion.div>
 
             <div className="lg:col-span-2 space-y-6">
