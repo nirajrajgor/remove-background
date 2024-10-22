@@ -125,41 +125,16 @@ export default function Home() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [quality, setQuality] = useState<number>(85);
   const [isDragging, setIsDragging] = useState(false);
-  const [isModelReady, setIsModelReady] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Check if the model is ready by attempting to process a tiny valid image
-  useEffect(() => {
-    async function checkModelReady() {
-      try {
-        // Create a 1x1 transparent PNG
-        const canvas = document.createElement('canvas');
-        canvas.width = 1;
-        canvas.height = 1;
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.fillStyle = 'rgba(0, 0, 0, 0)';
-          ctx.fillRect(0, 0, 1, 1);
-        }
-        const blob = await new Promise<Blob>((resolve) => canvas.toBlob((b) => resolve(b!), 'image/png'));
-        
-        await removeBackground(blob);
-        setIsModelReady(true);
-      } catch (error) {
-        console.error("Error checking model readiness:", error);
-        // Retry after a short delay
-        setTimeout(checkModelReady, 1000);
-      }
-    }
-    checkModelReady();
-  }, []);
+  // Remove the useEffect hook that was preloading the model
 
   const handleImageUpload = useCallback((files: FileList | null) => {
     if (files) {
       if (imagePairs.length > 0) {
         const confirmClear = window.confirm("Uploading new images will clear all existing images. Do you want to continue?");
         if (!confirmClear) {
-          return; // User cancelled, so don't proceed with the upload
+          return;
         }
       }
 
@@ -168,7 +143,6 @@ export default function Home() {
         original: file,
         processed: null
       }));
-      // Replace the existing image pairs with the new ones
       setImagePairs(newPairs);
     }
   }, [imagePairs.length]);
@@ -198,7 +172,7 @@ export default function Home() {
   }, [handleImageUpload]);
 
   const handleRemoveBackground = useCallback(async () => {
-    if (imagePairs.length === 0 || !isModelReady) return;
+    if (imagePairs.length === 0) return;
 
     setIsProcessing(true);
     try {
@@ -220,7 +194,7 @@ export default function Home() {
     } finally {
       setIsProcessing(false);
     }
-  }, [imagePairs, quality, isModelReady]);
+  }, [imagePairs, quality]);
 
   const handleRemoveImage = useCallback((id: string) => {
     setImagePairs(prev => prev.filter(pair => pair.id !== id));
@@ -289,7 +263,7 @@ export default function Home() {
               
               <button
                 onClick={handleRemoveBackground}
-                disabled={imagePairs.length === 0 || isProcessing || !isModelReady}
+                disabled={imagePairs.length === 0 || isProcessing}
                 className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-6 rounded-xl transition-colors duration-200 ease-in-out disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center"
               >
                 {isProcessing ? (
@@ -300,8 +274,6 @@ export default function Home() {
                     </svg>
                     Processing...
                   </span>
-                ) : !isModelReady ? (
-                  <span>Loading model...</span>
                 ) : (
                   <span>Remove Background</span>
                 )}
