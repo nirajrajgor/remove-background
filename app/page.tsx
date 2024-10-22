@@ -1,7 +1,7 @@
 'use client';
 
 import Image from "next/image";
-import { useState, useCallback, useRef, useMemo, memo, useEffect } from "react";
+import { useState, useCallback, useRef, useMemo, memo } from "react";
 import { removeBackground } from "@imgly/background-removal";
 import { motion, AnimatePresence } from "framer-motion";
 import { FiUpload, FiSliders, FiDownload, FiX } from "react-icons/fi";
